@@ -747,4 +747,71 @@ describe("CalendarService - SCHEDULE-AGENT injection", () => {
       await expect(service.createEvent(event, 1)).rejects.toThrow();
     });
   });
+
+  describe("CalendarService - Recurring CalDAV Event Expansion (#30195)", () => {
+    it("should correctly anchor weekly recurrence without BYDAY to event DTSTART", async () => {
+      const service = new TestCalendarService();
+
+      // Tuesday 2026-08-18 13:00 to 14:00 UTC
+      const mockRecurringIcs = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Cal.diy//NONSGML//EN
+BEGIN:VEVENT
+UID:recurring-tuesdays@example.com
+DTSTART:20260818T130000Z
+DTEND:20260818T140000Z
+RRULE:FREQ=WEEKLY
+SUMMARY:Weekly Sync on Tuesdays
+TRANSP:OPAQUE
+END:VEVENT
+END:VCALENDAR`;
+
+      vi.mocked(fetchCalendarObjects).mockResolvedValueOnce([
+        {
+          data: mockRecurringIcs,
+          url: "https://caldav.example.com/events/recurring.ics",
+          etag: "12345",
+        } as any,
+      ]);
+
+      // Query on Monday 2026-10-05: should NOT find any occurrence
+      const mondayAvailability = await service.getAvailability({
+        dateFrom: "2026-10-05T00:00:00.000Z",
+        dateTo: "2026-10-05T23:59:59.000Z",
+        selectedCalendars: [
+          {
+            externalId: "https://caldav.example.com/calendar/",
+            integration: "caldav",
+            credentialId: 1,
+          },
+        ],
+      });
+      expect(mondayAvailability).toHaveLength(0);
+
+      // Query on Tuesday 2026-10-06: should find the occurrence
+      vi.mocked(fetchCalendarObjects).mockResolvedValueOnce([
+        {
+          data: mockRecurringIcs,
+          url: "https://caldav.example.com/events/recurring.ics",
+          etag: "12345",
+        } as any,
+      ]);
+
+      const tuesdayAvailability = await service.getAvailability({
+        dateFrom: "2026-10-06T00:00:00.000Z",
+        dateTo: "2026-10-06T23:59:59.000Z",
+        selectedCalendars: [
+          {
+            externalId: "https://caldav.example.com/calendar/",
+            integration: "caldav",
+            credentialId: 1,
+          },
+        ],
+      });
+      expect(tuesdayAvailability).toHaveLength(1);
+      expect(tuesdayAvailability[0].start).toBe("2026-10-06T13:00:00.000Z");
+      expect(tuesdayAvailability[0].end).toBe("2026-10-06T14:00:00.000Z");
+    });
+  });
 });
+
