@@ -812,6 +812,47 @@ END:VCALENDAR`;
       expect(tuesdayAvailability[0].start).toBe("2026-10-06T13:00:00.000Z");
       expect(tuesdayAvailability[0].end).toBe("2026-10-06T14:00:00.000Z");
     });
+
+    it("should correctly evaluate recurrences starting more than 5000 days before requested window", async () => {
+      const service = new TestCalendarService();
+
+      // Recurrence starts in 2010 (>5000 days prior to 2026)
+      const mockLongRunningRecurringIcs = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:long-running-daily@example.com
+DTSTART:20100101T090000Z
+DTEND:20100101T100000Z
+RRULE:FREQ=DAILY
+SUMMARY:Daily Standup Since 2010
+TRANSP:OPAQUE
+END:VEVENT
+END:VCALENDAR`;
+
+      vi.mocked(fetchCalendarObjects).mockResolvedValueOnce([
+        {
+          data: mockLongRunningRecurringIcs,
+          url: "https://caldav.example.com/events/longrunning.ics",
+          etag: "54321",
+        } as any,
+      ]);
+
+      const availability = await service.getAvailability({
+        dateFrom: "2026-09-20T00:00:00.000Z",
+        dateTo: "2026-09-20T23:59:59.000Z",
+        selectedCalendars: [
+          {
+            externalId: "https://caldav.example.com/calendar/",
+            integration: "caldav",
+            credentialId: 1,
+          },
+        ],
+      });
+
+      expect(availability).toHaveLength(1);
+      expect(availability[0].start).toBe("2026-09-20T09:00:00.000Z");
+      expect(availability[0].end).toBe("2026-09-20T10:00:00.000Z");
+    });
   });
 });
 

@@ -757,8 +757,6 @@ export default abstract class BaseCalendarService implements Calendar {
             maxOccurrences > 0 &&
             (current = iterator.next())
           ) {
-            maxOccurrences -= 1;
-
             try {
               // @see https://github.com/mozilla-comm/ical.js/issues/514
               currentEvent = event.getOccurrenceDetails(current);
@@ -786,6 +784,7 @@ export default abstract class BaseCalendarService implements Calendar {
 
             const currentEnd = dayjs(currentEvent.endDate.toJSDate());
             if (currentStart.isBefore(end) && currentEnd.isAfter(start)) {
+              maxOccurrences -= 1;
               events.push({
                 start: currentStart.toISOString(),
                 end: currentEnd.toISOString(),
@@ -793,7 +792,7 @@ export default abstract class BaseCalendarService implements Calendar {
             }
           }
           if (maxOccurrences <= 0) {
-            logger.warn("Exceeded max occurrences limit for recurring event");
+            logger.warn("Exceeded max occurrences limit for recurring event within query window");
           }
           return;
         }
